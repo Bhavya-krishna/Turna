@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: turna-backend
+  labels:
+    app.kubernetes.io/name: turna-backend
+    app.kubernetes.io/part-of: turna-app
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: turna-backend
+  template:
+    metadata:
+      labels:
+        app: turna-backend
+        app.kubernetes.io/part-of: turna-app
+    spec:
+      initContainers:
+        - name: wait-for-postgres
+          image: postgres:16-alpine
+          command:
+            - sh
+            - -c
+            - "until pg_isready -h turna-postgres -p 5432 -U turna_user; do echo waiting for postgres; sleep 2; done"
+          env:
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: turna-secrets
+                  key: POSTGRES_USER
+      containers:
+        - name: django-api
+          image: turna-backend:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - "python manage.py migrate --noinput && python manage.py seed_data && gunicorn --bind 0.0.0.0:8000 --workers 3 --timeout 60 turna.wsgi:application"
+          ports:
+            - containerPort: 8000
+              name: http
+          envFrom:
+            - configMapRef:
+                name: turna-config
+            - secretRef:
+                name: turna-secrets
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "150m"
+            limits:
+              memory: "512Mi"
+              cpu: "800m"
+          livenessProbe:
+            httpGet:
+              path: /healthz/
+              port: 8000
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz/
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 2
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: turna-backend
+  labels:
+    app.kubernetes.io/name: turna-backend
+    app.kubernetes.io/part-of: turna-app
+spec:
+  ports:
+    - port: 8000
+      targetPort: 8000
+      name: http
+  selector:
+    app: turna-backend

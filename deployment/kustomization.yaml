@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - configmaps/turna-config.yaml
+  - secrets/turna-secrets.yaml
+  - postgres/postgres-pvc.yaml
+  - postgres/postgres-deployment.yaml
+  - redis/redis-deployment.yaml
+  - backend/backend-deployment.yaml
+  - celery/celery-deployment.yaml
+  - frontend/frontend-deployment.yaml
+  - hpa/backend-hpa.yaml
+
+commonLabels:
+  app.kubernetes.io/name: turna
+  app.kubernetes.io/part-of: turna-app

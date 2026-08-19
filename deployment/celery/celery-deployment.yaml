@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: turna-celery-worker
+  labels:
+    app.kubernetes.io/name: turna-celery-worker
+    app.kubernetes.io/part-of: turna-app
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: turna-celery-worker
+  template:
+    metadata:
+      labels:
+        app: turna-celery-worker
+        app.kubernetes.io/part-of: turna-app
+    spec:
+      containers:
+        - name: celery-worker
+          image: turna-backend:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - celery
+            - -A
+            - turna
+            - worker
+            - -l
+            - info
+            - --concurrency=2
+          envFrom:
+            - configMapRef:
+                name: turna-config
+            - secretRef:
+                name: turna-secrets
+          resources:
+            requests:
+              memory: "192Mi"
+              cpu: "100m"
+            limits:
+              memory: "384Mi"
+              cpu: "500m"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: turna-celery-beat
+  labels:
+    app.kubernetes.io/name: turna-celery-beat
+    app.kubernetes.io/part-of: turna-app
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: turna-celery-beat
+  template:
+    metadata:
+      labels:
+        app: turna-celery-beat
+        app.kubernetes.io/part-of: turna-app
+    spec:
+      containers:
+        - name: celery-beat
+          image: turna-backend:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - celery
+            - -A
+            - turna
+            - beat
+            - -l
+            - info
+          envFrom:
+            - configMapRef:
+                name: turna-config
+            - secretRef:
+                name: turna-secrets
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "250m"

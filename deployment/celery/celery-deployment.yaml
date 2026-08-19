@@ -18,10 +18,18 @@ spec:
         app: turna-celery-worker
         app.kubernetes.io/part-of: turna-app
     spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: celery-worker
-          image: turna-backend:latest
+          image: turna-backend
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           command:
             - celery
             - -A
@@ -63,10 +71,18 @@ spec:
         app: turna-celery-beat
         app.kubernetes.io/part-of: turna-app
     spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: celery-beat
-          image: turna-backend:latest
+          image: turna-backend
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           command:
             - celery
             - -A

@@ -1,0 +1,163 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: turna-frontend-network-policy
+  labels:
+    app.kubernetes.io/name: turna-frontend
+    app.kubernetes.io/part-of: turna-app
+spec:
+  podSelector:
+    matchLabels:
+      app: turna-frontend
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: turna-backend
+      ports:
+        - protocol: TCP
+          port: 8000
+    - to: []
+      ports:
+        - protocol: UDP
+          port: 53
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: turna-backend-network-policy
+  labels:
+    app.kubernetes.io/name: turna-backend
+    app.kubernetes.io/part-of: turna-app
+spec:
+  podSelector:
+    matchLabels:
+      app: turna-backend
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: turna-frontend
+      ports:
+        - protocol: TCP
+          port: 8000
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: turna-postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app: turna-redis
+      ports:
+        - protocol: TCP
+          port: 6379
+    - to: []
+      ports:
+        - protocol: UDP
+          port: 53
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: turna-celery-network-policy
+  labels:
+    app.kubernetes.io/name: turna-celery
+    app.kubernetes.io/part-of: turna-app
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: ["turna-celery-worker", "turna-celery-beat"]
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: turna-postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app: turna-redis
+      ports:
+        - protocol: TCP
+          port: 6379
+    - to: []
+      ports:
+        - protocol: UDP
+          port: 53
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: turna-postgres-network-policy
+  labels:
+    app.kubernetes.io/name: turna-postgres
+    app.kubernetes.io/part-of: turna-app
+spec:
+  podSelector:
+    matchLabels:
+      app: turna-postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: turna-backend
+        - podSelector:
+            matchLabels:
+              app: turna-celery-worker
+        - podSelector:
+            matchLabels:
+              app: turna-celery-beat
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: turna-redis-network-policy
+  labels:
+    app.kubernetes.io/name: turna-redis
+    app.kubernetes.io/part-of: turna-app
+spec:
+  podSelector:
+    matchLabels:
+      app: turna-redis
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: turna-backend
+        - podSelector:
+            matchLabels:
+              app: turna-celery-worker
+        - podSelector:
+            matchLabels:
+              app: turna-celery-beat
+      ports:
+        - protocol: TCP
+          port: 6379

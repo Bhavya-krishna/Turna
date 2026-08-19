@@ -1,0 +1,142 @@
+name: Production CD (Build, Push & Deploy to OpenShift)
+
+on:
+  push:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  validate:
+    name: Run Tests & Validations
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Test Backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          cd backend
+          pytest
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Test & Build Frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+  build-and-push-images:
+    name: Build & Push OCI Container Images
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry (GHCR)
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Prepare Lowercase Image Names
+        id: vars
+        run: |
+          OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "owner_lc=${OWNER_LC}" >> $GITHUB_OUTPUT
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Build & Push Backend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ steps.vars.outputs.owner_lc }}/turna-backend:${{ github.sha }}
+            ghcr.io/${{ steps.vars.outputs.owner_lc }}/turna-backend:${{ steps.vars.outputs.sha_short }}
+            ghcr.io/${{ steps.vars.outputs.owner_lc }}/turna-backend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & Push Frontend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ steps.vars.outputs.owner_lc }}/turna-frontend:${{ github.sha }}
+            ghcr.io/${{ steps.vars.outputs.owner_lc }}/turna-frontend:${{ steps.vars.outputs.sha_short }}
+            ghcr.io/${{ steps.vars.outputs.owner_lc }}/turna-frontend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy-to-openshift:
+    name: Deploy to Red Hat OpenShift
+    needs: build-and-push-images
+    runs-on: ubuntu-latest
+    # Run only when OpenShift secrets are configured
+    if: ${{ secrets.OPENSHIFT_SERVER != '' && secrets.OPENSHIFT_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up OpenShift CLI (oc)
+        uses: redhat-actions/oc-installer@v1
+        with:
+          oc_version: "4.15"
+
+      - name: Authenticate with OpenShift
+        run: |
+          oc login \
+            --server="${{ secrets.OPENSHIFT_SERVER }}" \
+            --token="${{ secrets.OPENSHIFT_TOKEN }}" \
+            --insecure-skip-tls-verify=false
+
+      - name: Select OpenShift Namespace / Project
+        run: |
+          NAMESPACE="${{ secrets.OPENSHIFT_NAMESPACE || 'turna-dev' }}"
+          oc project "$NAMESPACE"
+
+      - name: Update Kustomize with Immutable Git SHA Image Tags
+        run: |
+          OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          cd deployment
+          kustomize edit set image turna-backend=ghcr.io/${OWNER_LC}/turna-backend:${{ github.sha }}
+          kustomize edit set image turna-frontend=ghcr.io/${OWNER_LC}/turna-frontend:${{ github.sha }}
+
+      - name: Apply Declarative Manifests
+        run: |
+          oc apply -k deployment/
+
+      - name: Wait for Rollout Completion
+        run: |
+          oc rollout status deployment/turna-postgres --timeout=120s
+          oc rollout status deployment/turna-redis --timeout=120s
+          oc rollout status deployment/turna-backend --timeout=180s
+          oc rollout status deployment/turna-frontend --timeout=120s
+
+      - name: Verify Service Health
+        run: |
+          echo "Verifying health probes..."
+          oc get pods -l app.kubernetes.io/part-of=turna-app
+          oc get route -l app.kubernetes.io/part-of=turna-app

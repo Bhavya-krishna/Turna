@@ -20,9 +20,9 @@ server {
         add_header Cache-Control "public, max-age=15552000, immutable";
     }
 
-    # API Proxy to Django Backend
+    # API Proxy to Django Backend (${BACKEND_HOST} is substituted at startup)
     location /api/ {
-        proxy_pass http://backend:8000;
+        proxy_pass http://${BACKEND_HOST};
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -31,18 +31,18 @@ server {
 
     # Health check routes
     location /healthz/ {
-        proxy_pass http://backend:8000;
+        proxy_pass http://${BACKEND_HOST};
     }
     location /readyz/ {
-        proxy_pass http://backend:8000;
+        proxy_pass http://${BACKEND_HOST};
     }
 
     # Django static and media
     location /static/ {
-        proxy_pass http://backend:8000;
+        proxy_pass http://${BACKEND_HOST};
     }
     location /media/ {
-        proxy_pass http://backend:8000;
+        proxy_pass http://${BACKEND_HOST};
     }
 
     # SPA Fallback routing

@@ -21,9 +21,17 @@ spec:
         app: turna-backend
         app.kubernetes.io/part-of: turna-app
     spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       initContainers:
         - name: wait-for-postgres
           image: postgres:16-alpine
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           command:
             - sh
             - -c
@@ -36,8 +44,13 @@ spec:
                   key: POSTGRES_USER
       containers:
         - name: django-api
-          image: turna-backend:latest
+          image: turna-backend
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           command:
             - sh
             - -c

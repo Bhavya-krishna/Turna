@@ -11,6 +11,15 @@ resources:
   - celery/celery-deployment.yaml
   - frontend/frontend-deployment.yaml
   - hpa/backend-hpa.yaml
+  - network-policy/turna-network-policy.yaml
+
+images:
+  - name: turna-backend
+    newName: ghcr.io/turna-org/turna-backend
+    newTag: latest
+  - name: turna-frontend
+    newName: ghcr.io/turna-org/turna-frontend
+    newTag: latest
 
 commonLabels:
   app.kubernetes.io/name: turna

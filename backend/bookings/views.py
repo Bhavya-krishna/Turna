@@ -67,13 +67,30 @@ class InitiatePaymentView(APIView):
         return Response(order, status=status.HTTP_200_OK)
 
 
-class BookingCreateView(generics.CreateAPIView):
+class BookingCreateView(generics.ListCreateAPIView):
     """
-    Creates a new hospital appointment booking.
+    Lists user bookings (GET) and creates a new hospital appointment booking (POST).
     Guaranteed Concurrency Safety with PostgreSQL select_for_update() row-level locking.
     """
     permission_classes = (permissions.IsAuthenticated,)
-    serializer_class = BookingCreateSerializer
+
+    def get_serializer_class(self):
+        if self.request.method == 'GET':
+            return BookingListSerializer
+        return BookingCreateSerializer
+
+    def get_queryset(self):
+        return Booking.objects.filter(user=self.request.user).select_related(
+            'slot', 'doctor', 'doctor__department', 'hospital'
+        ).order_by('-created_at')
+
+    @extend_schema(
+        summary="List current user's bookings",
+        description="Returns list of upcoming and past bookings for the authenticated user.",
+        responses={200: BookingListSerializer(many=True)}
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
 
     @extend_schema(
         summary="Book an appointment slot",

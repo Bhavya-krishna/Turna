@@ -189,7 +189,8 @@ export const BookingModal: React.FC<BookingModalProps> = ({ doctor, onClose, onB
     }
   };
 
-  const formatTimeDisplay = (timeStr: string) => {
+  const formatTimeDisplay = (timeStr?: string) => {
+    if (!timeStr) return '';
     const parts = timeStr.split(':');
     let h = parseInt(parts[0], 10);
     const m = parts[1];

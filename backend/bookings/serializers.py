@@ -53,6 +53,9 @@ class BookingDetailSerializer(serializers.ModelSerializer):
     hospital_city = serializers.CharField(source='hospital.city', read_only=True)
     department_name = serializers.CharField(source='doctor.department.name', read_only=True)
     slot = AppointmentSlotSerializer(read_only=True)
+    slot_date = serializers.DateField(source='slot.date', read_only=True)
+    slot_start_time = serializers.TimeField(source='slot.start_time', read_only=True)
+    slot_end_time = serializers.TimeField(source='slot.end_time', read_only=True)
     notifications = NotificationSimpleSerializer(many=True, read_only=True)
 
     class Meta:
@@ -60,6 +63,7 @@ class BookingDetailSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'user', 'slot', 'doctor', 'doctor_name', 'doctor_specialization', 'doctor_phone',
             'hospital', 'hospital_name', 'hospital_address', 'hospital_city', 'department_name',
+            'slot_date', 'slot_start_time', 'slot_end_time',
             'status', 'payment_id', 'payment_order_id', 'payment_status', 'amount_paid',
             'patient_name', 'patient_phone', 'notes', 'notifications', 'created_at', 'updated_at'
         )

@@ -106,11 +106,11 @@ class ApiClient {
   }
 
   async getProfile(): Promise<User> {
-    return this.request<User>('/api/auth/profile/');
+    return this.request<User>('/api/auth/me/');
   }
 
   async updateProfile(payload: Partial<User>): Promise<User> {
-    const updated = await this.request<User>('/api/auth/profile/', {
+    const updated = await this.request<User>('/api/auth/me/', {
       method: 'PATCH',
       body: JSON.stringify(payload),
     });

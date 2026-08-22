@@ -26,6 +26,7 @@ export const AppointmentsList: React.FC<AppointmentsListProps> = ({ onExploreDoc
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [filterTab, setFilterTab] = useState<'all' | 'upcoming' | 'cancelled'>('upcoming');
   const [cancellingId, setCancellingId] = useState<number | null>(null);
+  const [cancelConfirmBooking, setCancelConfirmBooking] = useState<Booking | null>(null);
 
   const fetchBookings = () => {
     if (!isAuthenticated) {
@@ -52,16 +53,18 @@ export const AppointmentsList: React.FC<AppointmentsListProps> = ({ onExploreDoc
     fetchBookings();
   }, [isAuthenticated]);
 
-  const handleCancelBooking = async (booking: Booking) => {
-    if (!window.confirm(`Are you sure you want to cancel appointment #${booking.id} with ${booking.doctor_name}? The slot will be released back to the hospital schedule.`)) {
-      return;
-    }
+  const handleCancelBooking = (booking: Booking) => {
+    setCancelConfirmBooking(booking);
+  };
 
+  const executeCancelBooking = async () => {
+    if (!cancelConfirmBooking) return;
+    const booking = cancelConfirmBooking;
+    setCancelConfirmBooking(null);
     setCancellingId(booking.id);
     try {
       await api.cancelBooking(booking.id);
       toast.success('Appointment Cancelled', 'The slot has been released and your payment status refunded.');
-      // Refresh bookings list
       fetchBookings();
     } catch (err: any) {
       toast.error('Cancellation Failed', err.message || 'Could not cancel booking.');
@@ -329,6 +332,92 @@ export const AppointmentsList: React.FC<AppointmentsListProps> = ({ onExploreDoc
               </div>
             );
           })}
+        </div>
+      )}
+
+      {cancelConfirmBooking && (
+        <div className="modal-overlay" onClick={() => setCancelConfirmBooking(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px', padding: '2rem' }}>
+            <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <div
+                style={{
+                  width: '56px',
+                  height: '56px',
+                  borderRadius: '50%',
+                  background: 'var(--color-accent-coral-light)',
+                  color: 'var(--color-accent-coral)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto',
+                }}
+              >
+                <XCircle size={32} />
+              </div>
+
+              <div>
+                <h3 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                  Cancel Appointment?
+                </h3>
+                <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginTop: '0.5rem', lineHeight: '1.45' }}>
+                  Are you sure you want to cancel appointment <strong style={{ color: 'var(--text-primary)' }}>#{cancelConfirmBooking.id}</strong> with <strong style={{ color: 'var(--text-primary)' }}>{cancelConfirmBooking.doctor_name}</strong>? The slot will be released back to the hospital schedule.
+                </p>
+              </div>
+
+              <div
+                style={{
+                  background: 'var(--bg-input)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '1rem',
+                  border: '1px solid var(--border-subtle)',
+                  textAlign: 'left',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.5rem',
+                  fontSize: '0.85rem',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Hospital:</span>
+                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{cancelConfirmBooking.hospital_name}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Department:</span>
+                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{cancelConfirmBooking.department_name}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Date & Time:</span>
+                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                    {cancelConfirmBooking.slot_date} • {formatTimeDisplay(cancelConfirmBooking.slot_start_time)}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Refund Amount:</span>
+                  <span style={{ fontWeight: 700, color: 'var(--color-accent-emerald)' }}>
+                    ${Number(cancelConfirmBooking.amount_paid).toFixed(2)}
+                  </span>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
+                <button
+                  onClick={() => setCancelConfirmBooking(null)}
+                  className="btn btn-secondary"
+                  style={{ flex: 1 }}
+                >
+                  Keep Appointment
+                </button>
+                <button
+                  disabled={cancellingId === cancelConfirmBooking.id}
+                  onClick={executeCancelBooking}
+                  className="btn btn-danger"
+                  style={{ flex: 1 }}
+                >
+                  {cancellingId === cancelConfirmBooking.id ? 'Releasing...' : 'Confirm Cancel'}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
